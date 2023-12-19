@@ -26,10 +26,10 @@ jobs:
       - name: Build avec gradle
         run: cd android && ./gradlew assembleRelease
 
-      - name: Archive APK Artifact
+      - name: Archive build Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: apk-artifact
+          name: build-artifact
           path: android/app/build/outputs/apk/release/
 
   deploy:
