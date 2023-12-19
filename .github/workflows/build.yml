@@ -31,3 +31,33 @@ jobs:
         with:
           name: apk-artifact
           path: android/app/build/outputs/apk/release/
+
+deploy:
+  needs: build
+  runs-on: ubuntu-latest
+
+  steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+
+    - name: Generate release date
+      id: generate_date
+      run: echo "::set-output name=date::$(date +'%Y-%m-%d_%H-%M-%S')"
+
+    - name: Download Build Artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: build-artifact
+        path: ./apk
+
+    - name: Deploy using scp with generated RSA private key
+      run: |
+        ssh -T -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} -p 22 "mkdir -p ~/mobile/release_${{ steps.generate_date.outputs.date }}"
+        scp -r -i ~/.ssh/id_rsa ./apk/* ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }}:~/mobile/release_${{ steps.generate_date.outputs.date }}
