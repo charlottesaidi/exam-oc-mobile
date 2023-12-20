@@ -1,45 +1,57 @@
+# Construit l'application et la déploie sur un serveur distant
 name: Build and deploy
 
+# Déclenche le workflow lorsqu'il y a un push sur la branche master
 on:
   push:
     branches:
       - master
 
+# Jobs à exécuter dans le workflow
 jobs:
+  # Job pour la construction de l'application
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # Étape pour récupérer le code source du référentiel
       - name: Checkout Repository
         uses: actions/checkout@v3
 
+      # Étape pour installer les dépendances du projet avec npm
       - name: Install Dependencies
         run: npm install
 
+      # Étape pour configurer JDK 11
       - name: Set up JDK 11
         uses: actions/setup-java@v3
         with:
           java-version: '11'
           distribution: 'adopt'
 
-      # build le fichier apk
-      - name: Build avec gradle
+      # Étape pour construire le fichier APK avec Gradle
+      - name: Build with Gradle
         run: cd android && ./gradlew assembleRelease
 
+      # Étape pour archiver l'artifact de construction pour téléchargement ultérieur (lors du déploiement)
       - name: Archive build Artifact
         uses: actions/upload-artifact@v3
         with:
           name: build-artifact
           path: android/app/build/outputs/apk/release/
 
+  # Job pour le déploiement de l'application
   deploy:
+    # Dépend du job "build" pour s'exécuter en cas de succès
     needs: build
     runs-on: ubuntu-latest
 
     steps:
+      # Étape pour récupérer à nouveau le code source du référentiel
       - name: Checkout Repository
         uses: actions/checkout@v2
 
+      # Étape pour configurer la clé SSH
       - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
@@ -47,16 +59,19 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
 
+      # Étape pour générer la date de sortie du build
       - name: Generate release date
         id: generate_date
         run: echo "::set-output name=date::$(date +'%Y-%m-%d_%H-%M-%S')"
 
+      # Étape pour télécharger l'artifact de construction
       - name: Download Build Artifact
         uses: actions/download-artifact@v2
         with:
           name: build-artifact
           path: ./apk
 
+      # Étape pour déployer l'application via SCP avec la clé privée RSA générée
       - name: Deploy using scp with generated RSA private key
         run: |
           ssh -T -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} -p 22 "mkdir -p ~/mobile/release_${{ steps.generate_date.outputs.date }}"
